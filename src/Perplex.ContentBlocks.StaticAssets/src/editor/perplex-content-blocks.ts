@@ -73,6 +73,9 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
     private _definitions: import('../types.ts').PCBCategoryWithDefinitions[] = [];
 
     @state()
+    private _definitionsLoaded: boolean = false;
+
+    @state()
     private focusedBlockId?: string;
 
     // ── Context instances ─────────────────────────────────────────────
@@ -177,6 +180,8 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
             this.ctx.setDefinitions(definitions);
             this._definitions = definitions;
         }
+
+        this._definitionsLoaded = true;
 
         if (presets) {
             this.ctx.presets = presets;
@@ -491,9 +496,10 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
     render() {
         const header = this._value.header;
         const headerDefinition = header ? this.ctx.findDefinitionById(header.definitionId) : null;
-        const blocks = this._value.blocks
-            .map(block => ({ block, definition: this.ctx.findDefinitionById(block.definitionId) }))
-            .filter(item => item.definition !== null);
+        const blocks = this._value.blocks.map(block => ({
+            block,
+            definition: this.ctx.findDefinitionById(block.definitionId),
+        }));
 
         const hasCopied = this._copiedValue != null;
 
@@ -530,32 +536,111 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
                 <div class="main">
                     <div class="pcb__wrapper">
                         <div class="pcb__content">
-                            <div class="pcb__blocks">
-                                ${header && headerDefinition && this.structure !== Structure.Blocks
+                            ${!this._definitionsLoaded
+                                ? html`<uui-loader style="color: var(--uui-color-default)"></uui-loader>`
+                                : html`<div class="pcb__blocks">
+                                          ${
+                                              header && this.structure !== Structure.Blocks
+                                                  ? html`
+                                                        <pcb-block
+                                                            .draggable=${false}
+                                                            .block=${header}
+                                                            .collapsed=${!this.openedBlocks.includes(header.id)}
+                                                            .removeBlock=${this._removeHeader.bind(this)}
+                                                            .dataPath=${this.dataPath}
+                                                            .definition=${headerDefinition ?? null}
+                                                            .section=${Section.HEADER}
+                                                            .openModal=${this._openModal}
+                                                            .isDraggingBlock=${this._isDraggingBlock}
+                                                            .isMandatory=${this._isBlockMandatory(
+                                                                header,
+                                                                Section.HEADER,
+                                                            )}
+                                                        ></pcb-block>
+                                                    `
+                                                  : nothing
+                                          }
+                                ${
+                                    !this._value.header && this.structure !== Structure.Blocks
+                                        ? html`
+                                              <div class="pcb__block-add pcb__block-add--header">
+                                                  <uui-button
+                                                      label="add header"
+                                                      look="primary"
+                                                      @click=${this.addHeader}
+                                                  >
+                                                      <slot name="label">Add header</slot>
+                                                      <slot name="extra">
+                                                          <uui-icon name="icon-add"></uui-icon>
+                                                      </slot>
+                                                  </uui-button>
+
+                                                  ${hasCopied
+                                                      ? html`
+                                                            <uui-button
+                                                                label="paste header"
+                                                                look="primary"
+                                                                @click=${() => this.pasteBlock(Section.HEADER)}
+                                                            >
+                                                                <slot name="label">Paste header</slot>
+                                                                <slot name="extra">
+                                                                    <uui-icon name="icon-clipboard-paste"></uui-icon>
+                                                                </slot>
+                                                            </uui-button>
+                                                        `
+                                                      : nothing}
+                                              </div>
+                                          `
+                                        : nothing
+                                }
+                                ${
+                                    this.structure !== Structure.Header
+                                        ? html`
+                                              <pcb-drag-and-drop .blocks="${this._value.blocks}">
+                                                  ${repeat(
+                                                      blocks,
+                                                      ({ block }) => block.id,
+                                                      ({ block, definition }, index) => html`
+                                                          <pcb-drag-item
+                                                              .canDrag=${!this.openedBlocks.includes(block.id)}
+                                                              .blockId=${block.id}
+                                                          >
+                                                              <pcb-block
+                                                                  .draggable=${!this.openedBlocks.includes(block.id)}
+                                                                  .block=${block}
+                                                                  .collapsed=${!this.openedBlocks.includes(block.id)}
+                                                                  .removeBlock=${this.#boundRemoveBlock}
+                                                                  .dataPath=${this.dataPath}
+                                                                  .definition=${definition ?? null}
+                                                                  .section=${Section.CONTENT}
+                                                                  .index=${index}
+                                                                  .openModal=${this._openModal}
+                                                                  .isDraggingBlock=${this._isDraggingBlock}
+                                                                  .isMandatory=${this._isBlockMandatory(
+                                                                      block,
+                                                                      Section.CONTENT,
+                                                                  )}
+                                                                  .hasCopiedValue=${hasCopied}
+                                                              ></pcb-block>
+                                                          </pcb-drag-item>
+                                                      `,
+                                                  )}
+                                              </pcb-drag-and-drop>
+                                          `
+                                        : nothing
+                                }
+                            </div>
+
+                            ${
+                                this.structure !== Structure.Header
                                     ? html`
-                                          <pcb-block
-                                              .draggable=${false}
-                                              .block=${header}
-                                              .collapsed=${!this.openedBlocks.includes(header.id)}
-                                              .removeBlock=${this._removeHeader.bind(this)}
-                                              .dataPath=${this.dataPath}
-                                              .definition=${headerDefinition}
-                                              .section=${Section.HEADER}
-                                              .openModal=${this._openModal}
-                                              .isDraggingBlock=${this._isDraggingBlock}
-                                              .isMandatory=${this._isBlockMandatory(header, Section.HEADER)}
-                                          ></pcb-block>
-                                      `
-                                    : nothing}
-                                ${!this._value.header && this.structure !== Structure.Blocks
-                                    ? html`
-                                          <div class="pcb__block-add pcb__block-add--header">
+                                          <div class="pcb__block-add">
                                               <uui-button
-                                                  label="add header"
+                                                  label="add content"
                                                   look="primary"
-                                                  @click=${this.addHeader}
+                                                  @click=${this.addBlock}
                                               >
-                                                  <slot name="label">Add header</slot>
+                                                  <slot name="label">Add content</slot>
                                                   <slot name="extra">
                                                       <uui-icon name="icon-add"></uui-icon>
                                                   </slot>
@@ -564,11 +649,11 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
                                               ${hasCopied
                                                   ? html`
                                                         <uui-button
-                                                            label="paste header"
                                                             look="primary"
-                                                            @click=${() => this.pasteBlock(Section.HEADER)}
+                                                            label="paste content"
+                                                            @click=${() => this.pasteBlock(Section.CONTENT)}
                                                         >
-                                                            <slot name="label">Paste header</slot>
+                                                            <slot name="label">Paste content</slot>
                                                             <slot name="extra">
                                                                 <uui-icon name="icon-clipboard-paste"></uui-icon>
                                                             </slot>
@@ -577,74 +662,9 @@ export default class PerplexContentBlocksElement extends UmbLitElement implement
                                                   : nothing}
                                           </div>
                                       `
-                                    : nothing}
-                                ${this.structure !== Structure.Header
-                                    ? html`
-                                          <pcb-drag-and-drop .blocks="${this._value.blocks}">
-                                              ${repeat(
-                                                  blocks,
-                                                  ({ block }) => block.id,
-                                                  ({ block, definition }, index) => html`
-                                                      <pcb-drag-item
-                                                          .canDrag=${!this.openedBlocks.includes(block.id)}
-                                                          .blockId=${block.id}
-                                                      >
-                                                          <pcb-block
-                                                              .draggable=${!this.openedBlocks.includes(block.id)}
-                                                              .block=${block}
-                                                              .collapsed=${!this.openedBlocks.includes(block.id)}
-                                                              .removeBlock=${this.#boundRemoveBlock}
-                                                              .dataPath=${this.dataPath}
-                                                              .definition=${definition!}
-                                                              .section=${Section.CONTENT}
-                                                              .index=${index}
-                                                              .openModal=${this._openModal}
-                                                              .isDraggingBlock=${this._isDraggingBlock}
-                                                              .isMandatory=${this._isBlockMandatory(
-                                                                  block,
-                                                                  Section.CONTENT,
-                                                              )}
-                                                              .hasCopiedValue=${hasCopied}
-                                                          ></pcb-block>
-                                                      </pcb-drag-item>
-                                                  `,
-                                              )}
-                                          </pcb-drag-and-drop>
-                                      `
-                                    : nothing}
-                            </div>
-
-                            ${this.structure !== Structure.Header
-                                ? html`
-                                      <div class="pcb__block-add">
-                                          <uui-button
-                                              label="add content"
-                                              look="primary"
-                                              @click=${this.addBlock}
-                                          >
-                                              <slot name="label">Add content</slot>
-                                              <slot name="extra">
-                                                  <uui-icon name="icon-add"></uui-icon>
-                                              </slot>
-                                          </uui-button>
-
-                                          ${hasCopied
-                                              ? html`
-                                                    <uui-button
-                                                        look="primary"
-                                                        label="paste content"
-                                                        @click=${() => this.pasteBlock(Section.CONTENT)}
-                                                    >
-                                                        <slot name="label">Paste content</slot>
-                                                        <slot name="extra">
-                                                            <uui-icon name="icon-clipboard-paste"></uui-icon>
-                                                        </slot>
-                                                    </uui-button>
-                                                `
-                                              : nothing}
-                                      </div>
-                                  `
-                                : nothing}
+                                    : nothing
+                            }
+                          </div>`}
                         </div>
                     </div>
 

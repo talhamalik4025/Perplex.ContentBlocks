@@ -13,6 +13,10 @@
         border-top-right-radius: var(--uui-border-radius);
         border-bottom-right-radius: var(--uui-border-radius);
         border: 1px solid var(--uui-color-border);
+
+        .block-head--missing-definition & {
+            border-left: none;
+        }
     }
 
     .block-head__control {
@@ -50,6 +54,11 @@
         overflow: hidden;
         background-color: transparent;
         transition: 250ms border ease;
+
+        &:disabled {
+            cursor: default;
+            background-color: var(--uui-color-surface);
+        }
     }
 
     &.block-head--open {
@@ -138,13 +147,10 @@
                 opacity: 0.5;
             }
 
-            &.block-head__description--no-title {
-                font-size: var(--uui-type-default-size);
-                font-weight: 700;
+            user-select: text;
 
-                .block-head--disabled & {
-                    text-decoration: line-through;
-                }
+            .block-head--disabled & {
+                text-decoration: line-through;
             }
         }
     }
